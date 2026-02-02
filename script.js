@@ -1,5 +1,4 @@
-const JAM_CLIENT_ID = "";
-const YT_API_KEY = "";
+// As chaves API agora são gerenciadas via Netlify Functions para maior segurança.
 
 let currentAudio = new Audio();
 let ytPlayer = null;
@@ -96,36 +95,36 @@ async function handleSearch(e) {
             <div class="card-column"><h3>🎵 JAMENDO</h3><div id="j-res" class="track-list-area"></div></div>
             <div class="card-column"><h3>📺 YOUTUBE</h3><div id="y-res" class="track-list-area"></div></div>`;
 
-        // Jamendo
-        if (!JAM_CLIENT_ID) {
-            document.getElementById('j-res').innerHTML = "<p style='color:#e74c3c; padding:10px;'>Jamendo API Key missing.</p>";
-        } else {
-            fetch(`https://api.jamendo.com/v3.0/tracks/?client_id=${JAM_CLIENT_ID}&format=json&search=${query}&limit=12`)
-                .then(r => r.json())
-                .then(data => {
-                    if (data.results) data.results.forEach(t => {
-                        document.getElementById('j-res').innerHTML += createRow(t.name, t.audio, false);
-                        addToLoadedTracks({name: t.name, source: t.audio, isYT: false});
-                    });
-                }).catch(err => console.error("Jamendo Search Error:", err));
-        }
+        // Jamendo (via Proxy)
+        fetch(`/.netlify/functions/jamendo?search=${encodeURIComponent(query)}&limit=12`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                if (data.results) data.results.forEach(t => {
+                    document.getElementById('j-res').innerHTML += createRow(t.name, t.audio, false);
+                    addToLoadedTracks({name: t.name, source: t.audio, isYT: false});
+                });
+            }).catch(err => {
+                console.error("Jamendo Proxy Error:", err);
+                document.getElementById('j-res').innerHTML = `<p style='color:#e74c3c; padding:10px;'>Jamendo: ${err.message}</p>`;
+            });
 
-        // YouTube
-        if (!YT_API_KEY) {
-            document.getElementById('y-res').innerHTML = "<p style='color:#e74c3c; padding:10px;'>YouTube API Key missing.</p>";
-        } else {
-            fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${query}&type=video&key=${YT_API_KEY}&maxResults=12`)
-                .then(r => r.json())
-                .then(data => {
-                    if (data.items) data.items.forEach(item => {
-                        const vidId = item.id.videoId;
-                        if(vidId) {
-                            document.getElementById('y-res').innerHTML += createRow(item.snippet.title, vidId, true);
-                            addToLoadedTracks({name: item.snippet.title, source: vidId, isYT: true});
-                        }
-                    });
-                }).catch(err => console.error("YT Search Error:", err));
-        }
+        // YouTube (via Proxy)
+        fetch(`/.netlify/functions/youtube?q=${encodeURIComponent(query)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                if (data.items) data.items.forEach(item => {
+                    const vidId = item.id.videoId;
+                    if(vidId) {
+                        document.getElementById('y-res').innerHTML += createRow(item.snippet.title, vidId, true);
+                        addToLoadedTracks({name: item.snippet.title, source: vidId, isYT: true});
+                    }
+                });
+            }).catch(err => {
+                console.error("YouTube Proxy Error:", err);
+                document.getElementById('y-res').innerHTML = `<p style='color:#e74c3c; padding:10px;'>YouTube: ${err.message}</p>`;
+            });
     }
 }
 
@@ -173,20 +172,19 @@ function prevTrack() { if(currentQueueIndex > 0) playFromQueue(currentQueueIndex
 async function renderHome(c) {
     c.innerHTML = `<div class="card-column"><h3>POPULARES</h3><div id="h1" class="track-list-area"></div></div><div class="card-column"><h3>DESCOBRIR</h3><div id="h2" class="track-list-area"></div></div>`;
 
-    if (!JAM_CLIENT_ID) {
-        document.getElementById('h1').innerHTML = "<p style='color:#e74c3c; padding:10px;'>Jamendo API Key missing.</p>";
-        document.getElementById('h2').innerHTML = "<p style='color:#e74c3c; padding:10px;'>Jamendo API Key missing.</p>";
-    } else {
-        fetch(`https://api.jamendo.com/v3.0/tracks/?client_id=${JAM_CLIENT_ID}&format=json&limit=20`)
-            .then(r => r.json())
-            .then(data => {
-                if (data.results) data.results.forEach((t, i) => {
-                    const target = i < 10 ? 'h1' : 'h2';
-                    document.getElementById(target).innerHTML += createRow(t.name, t.audio, false);
-                    addToLoadedTracks({name: t.name, source: t.audio, isYT: false});
-                });
-            }).catch(err => console.error("Jamendo Home Error:", err));
-    }
+    fetch(`/.netlify/functions/jamendo?limit=20`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) throw new Error(data.error);
+            if (data.results) data.results.forEach((t, i) => {
+                const target = i < 10 ? 'h1' : 'h2';
+                document.getElementById(target).innerHTML += createRow(t.name, t.audio, false);
+                addToLoadedTracks({name: t.name, source: t.audio, isYT: false});
+            });
+        }).catch(err => {
+            console.error("Jamendo Home Proxy Error:", err);
+            document.getElementById('h1').innerHTML = `<p style='color:#e74c3c; padding:10px;'>Erro: ${err.message}</p>`;
+        });
 }
 
 function addToLoadedTracks(track) {
