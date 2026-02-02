@@ -1,5 +1,5 @@
-const JAM_CLIENT_ID = "51abc62b";
-const YT_API_KEY = "AIzaSyBODfAgzEo4TEU6rPbhech3iVXg9JToCI0";
+const JAM_CLIENT_ID = "";
+const YT_API_KEY = "";
 
 let currentAudio = new Audio();
 let ytPlayer = null;
@@ -201,5 +201,6 @@ document.getElementById('volume-control').oninput = (e) => {
     currentAudio.volume = e.target.value;
     if(isYtReady && ytPlayer) ytPlayer.setVolume(e.target.value * 100);
 };
+
 
 const formatTime = (t) => `${Math.floor(t/60)}:${Math.floor(t%60).toString().padStart(2,'0')}`;
