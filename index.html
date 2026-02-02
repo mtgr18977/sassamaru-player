@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sassamaru Player</title>
+    
+    <link rel="stylesheet" href="style.css">
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4a90e2">
+    
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="icon" type="image/png" href="icon-192.png">
+</head>
+<body>
+
+    <div class="container">
+        
+        <nav class="sidebar">
+            <h2 class="logo">SASSAMARU</h2>
+            
+            <div class="search-box">
+                <input type="text" id="global-search" placeholder="Pesquisar..." onkeyup="handleSearch(event)">
+            </div>
+
+            <ul>
+                <li onclick="showSection('home')">
+                    <span class="icon">🏠</span> <span>HOME</span>
+                </li>
+                <li onclick="showSection('listas')">
+                    <span class="icon">📁</span> <span>MINHAS LISTAS</span>
+                </li>
+                <li onclick="showSection('aleatorio')">
+                    <span class="icon">🎲</span> <span>MIX ALEATÓRIO</span>
+                </li>
+                <li onclick="showSection('podcasts')">
+                    <span class="icon">🎙️</span> <span>PODCASTS</span>
+                </li>
+            </ul>
+        </nav>
+
+        <main class="content" id="main-content"></main>
+
+        <div id="yt-player-container"></div>
+
+        <footer class="player-bar">
+            <div class="track-info">
+                <strong id="current-track-title">Selecione uma música</strong>
+            </div>
+            
+            <div class="player-center">
+                <div class="controls">
+                    <button class="ctrl-btn" onclick="prevTrack()" title="Anterior">⏮</button>
+                    <button class="play-btn-main" id="master-play" onclick="togglePlay()" title="Play/Pause">▶</button>
+                    <button class="ctrl-btn" onclick="nextTrack()" title="Próxima">⏭</button>
+                </div>
+                
+                <div class="progress-container">
+                    <span id="current-time">0:00</span>
+                    <input type="range" id="progress-bar" min="0" max="100" value="0">
+                    <span id="total-time">0:00</span>
+                </div>
+            </div>
+
+            <div class="volume-box">
+                <span>🔊</span>
+                <input type="range" id="volume-control" min="0" max="1" step="0.1" value="0.5">
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://www.youtube.com/iframe_api"></script>
+
+    <script src="podcasts.js" defer></script>
+    <script src="script.js" defer></script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('🐶 Sassamaru Player pronto para instalar!'))
+                    .catch(err => console.error('Erro PWA:', err));
+            });
+        }
+    </script>
+
+</body>
+</html>
