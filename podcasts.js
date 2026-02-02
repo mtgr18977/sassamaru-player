@@ -17,7 +17,7 @@ function renderPodcasts(container) {
             <button onclick="loadCustomRSS()" style="width:100%; padding:12px; background:var(--accent); color:white; border:none; border-radius:15px; cursor:pointer; margin-bottom:20px; font-weight:bold;">CARREGAR FEED</button>
             <div id="podcast-list" class="track-list-area"></div>
         </div>
-        
+
         <div class="card-column">
             <h3>🎧 EPISÓDIOS</h3>
             <div id="episode-list" class="track-list-area">
@@ -66,7 +66,7 @@ async function fetchRSS(url) {
         }
 
         let rowsHTML = "";
-        
+
         // A API já entrega tudo organizado em 'items'
         data.items.forEach((item, index) => {
             // Pega o áudio do enclosure (padrão)
@@ -76,7 +76,7 @@ async function fetchRSS(url) {
             if (audioUrl) {
                 const safeTitle = escapeStr(title);
                 const safeUrl = escapeStr(audioUrl);
-                
+
                 rowsHTML += `
                     <div class="track-item">
                         <div style="flex:1; padding-right:10px; overflow:hidden;">
