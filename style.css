@@ -99,6 +99,24 @@ body {
 .btn-play { background: var(--accent); }
 .btn-add { background: var(--accent-green); margin-left: 8px; }
 
+.btn-delete {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    color: #e74c3c;
+    padding: 5px;
+    border-radius: 50%;
+    transition: 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.btn-delete:hover {
+    background: #ffeaea;
+    transform: scale(1.1);
+}
+
 /* PLAYER BAR (Desktop) */
 .player-bar {
     grid-column: 1 / 3; /* Ocupa toda a largura embaixo */

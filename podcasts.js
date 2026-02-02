@@ -1,20 +1,26 @@
-// Lista de Podcasts
-const PODCAST_FEEDS = [
-    { name: "Jovem Nerd", url: "https://jovemnerd.com.br/feed-nerdcast/" },
-    { name: "Flow", url: "https://flowpodcast.com.br/feed/rss" },
-    { name: "G1 - O Assunto", url: "https://g1.globo.com/podcast/o-assunto/feed.xml" },
-    { name: "CBN", url: "https://cbn.globoradio.globo.com/rss/cbn.xml" },
-    { name: "Café Brasil", url: "https://feed.portalcafebrasil.com.br/tools/podcast.xml" }
+// Lista de Podcasts com persistência
+const DEFAULT_FEEDS = [
+    { name: "NerdCast", url: "https://jovemnerd.com.br/feed-nerdcast/" },
+    { name: "Hipsters Ponto Tech", url: "https://hipsters.tech/feed/podcast/" },
+    { name: "RapaduraCast", url: "https://cinemacomrapadura.com.br/rapaduracast.xml" },
+    { name: "Xadrez Verbal", url: "https://xadrezverbal.com/feed/" },
+    { name: "Reloading", url: "https://reloading.com.br/feed/podcast/" }
 ];
+
+let PODCAST_FEEDS = JSON.parse(localStorage.getItem('sassamaru_podcasts')) || DEFAULT_FEEDS;
+
+function savePodcasts() {
+    localStorage.setItem('sassamaru_podcasts', JSON.stringify(PODCAST_FEEDS));
+}
 
 function renderPodcasts(container) {
     container.innerHTML = `
         <div class="card-column">
             <h3>🎙️ CANAIS</h3>
-            <div class="search-box" style="margin-bottom:15px;">
-                <input type="text" id="rss-input" placeholder="Cole link RSS..." style="width:100%; padding:12px; border-radius:15px; border:1px solid #ddd;">
+            <div class="search-box">
+                <input type="text" id="rss-input" placeholder="Cole link RSS...">
             </div>
-            <button onclick="loadCustomRSS()" style="width:100%; padding:12px; background:var(--accent); color:white; border:none; border-radius:15px; cursor:pointer; margin-bottom:20px; font-weight:bold;">CARREGAR FEED</button>
+            <button id="btn-add-rss" onclick="loadCustomRSS()" style="width:100%; padding:12px; background:var(--accent); color:white; border:none; border-radius:15px; cursor:pointer; margin-bottom:20px; font-weight:bold;">ADICIONAR CANAL</button>
             <div id="podcast-list" class="track-list-area"></div>
         </div>
 
@@ -29,19 +35,71 @@ function renderPodcasts(container) {
         </div>
     `;
 
+    renderPodcastList();
+}
+
+function renderPodcastList() {
     const list = document.getElementById('podcast-list');
+    if (!list) return;
+
     let html = "";
-    PODCAST_FEEDS.forEach(feed => {
-        html += `<div class="track-item" style="cursor:pointer;" onclick="fetchRSS('${feed.url}')">
-                    <span style="font-weight:700;">${feed.name}</span><span>📡</span>
-                 </div>`;
+    PODCAST_FEEDS.forEach((feed, index) => {
+        html += `
+            <div class="track-item" style="cursor:pointer;" onclick="fetchRSS('${feed.url}')">
+                <div style="flex:1; display:flex; align-items:center; gap:10px; overflow:hidden;">
+                    <span style="font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${feed.name}</span>
+                    <span>📡</span>
+                </div>
+                <button class="btn-delete" onclick="deletePodcast(${index}); event.stopPropagation();" title="Excluir">🗑️</button>
+            </div>`;
     });
     list.innerHTML = html;
 }
 
-function loadCustomRSS() {
-    const url = document.getElementById('rss-input').value;
-    if(url) fetchRSS(url);
+async function loadCustomRSS() {
+    const url = document.getElementById('rss-input').value.trim();
+    if(!url) return;
+
+    const btn = document.getElementById('btn-add-rss');
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ BUSCANDO...";
+    btn.disabled = true;
+
+    try {
+        const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`;
+        const res = await fetch(apiUrl);
+        const data = await res.json();
+
+        if (data.status !== 'ok') {
+            throw new Error("Não foi possível validar este feed.");
+        }
+
+        const name = data.feed.title || "Podcast Sem Nome";
+
+        // Evita duplicatas
+        if (!PODCAST_FEEDS.some(f => f.url === url)) {
+            PODCAST_FEEDS.push({ name, url });
+            savePodcasts();
+            renderPodcastList();
+        }
+
+        fetchRSS(url); // Carrega os episódios
+        document.getElementById('rss-input').value = "";
+
+    } catch (e) {
+        alert(e.message);
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
+
+function deletePodcast(index) {
+    if (confirm(`Deseja remover "${PODCAST_FEEDS[index].name}" da sua lista?`)) {
+        PODCAST_FEEDS.splice(index, 1);
+        savePodcasts();
+        renderPodcastList();
+    }
 }
 
 // Limpeza de Strings para não quebrar o HTML
@@ -52,9 +110,10 @@ function escapeStr(str) {
 
 async function fetchRSS(url) {
     const episodeList = document.getElementById('episode-list');
-    episodeList.innerHTML = `<p style="text-align:center; padding:20px;">🔄 Convertendo Feed...</p>`;
+    if (!episodeList) return;
 
-    // USAMOS A API RSS2JSON (Muito mais estável que proxies brutos)
+    episodeList.innerHTML = `<p style="text-align:center; padding:20px;">🔄 Carregando episódios...</p>`;
+
     const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`;
 
     try {
@@ -67,9 +126,7 @@ async function fetchRSS(url) {
 
         let rowsHTML = "";
 
-        // A API já entrega tudo organizado em 'items'
-        data.items.forEach((item, index) => {
-            // Pega o áudio do enclosure (padrão)
+        data.items.forEach((item) => {
             const audioUrl = item.enclosure ? item.enclosure.link : null;
             const title = item.title;
 
@@ -80,10 +137,10 @@ async function fetchRSS(url) {
                 rowsHTML += `
                     <div class="track-item">
                         <div style="flex:1; padding-right:10px; overflow:hidden;">
-                            <div style="font-weight:600; font-size:0.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            <div style="font-weight:600; font-size:0.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${title}">
                                 ${title}
                             </div>
-                            <div style="font-size:0.7rem; color:#888;">${item.pubDate.split(' ')[0]}</div>
+                            <div style="font-size:0.7rem; color:#888;">${item.pubDate ? item.pubDate.split(' ')[0] : ''}</div>
                         </div>
                         <div style="display:flex;">
                             <button class="btn-circle btn-play" onclick="playManual('${safeUrl}', '${safeTitle}', false)">▶</button>
