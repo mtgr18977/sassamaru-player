@@ -9,6 +9,7 @@ let allLoadedTracks = [];
 let playQueue = [];
 let currentQueueIndex = 0;
 let isYouTubeMode = false;
+let isDragging = false;
 
 // 1. YouTube Setup
 function onYouTubeIframeAPIReady() {
@@ -35,7 +36,7 @@ function showSection(section) {
     const main = document.getElementById('main-content');
     if (!main) return;
     main.innerHTML = "";
-    
+
     if (section === 'home') renderHome(main);
     else if (section === 'listas') renderPlaylistSection(main);
     else if (section === 'aleatorio') createRandomMix(main);
@@ -45,10 +46,10 @@ function showSection(section) {
 // 2. Play (Blindado)
 function playTrack(source, title, isYT) {
     isYouTubeMode = isYT;
-    
+
     // Reseta Player de Áudio
     currentAudio.pause();
-    
+
     if (isYouTubeMode) {
         if (isYtReady && ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
             ytPlayer.loadVideoById(source);
@@ -62,11 +63,11 @@ function playTrack(source, title, isYT) {
     } else {
         // Pausa YouTube se estiver tocando
         if (isYtReady && ytPlayer && typeof ytPlayer.stopVideo === 'function') ytPlayer.stopVideo();
-        
+
         currentAudio.src = source;
         currentAudio.play().catch(e => console.error("Erro MP3:", e));
     }
-    
+
     document.getElementById('current-track-title').innerText = title;
     document.getElementById('master-play').innerText = "⏸";
 }
@@ -90,41 +91,55 @@ async function handleSearch(e) {
     if (e.key === "Enter") {
         const query = e.target.value;
         const main = document.getElementById('main-content');
-        
+
         main.innerHTML = `
             <div class="card-column"><h3>🎵 JAMENDO</h3><div id="j-res" class="track-list-area"></div></div>
             <div class="card-column"><h3>📺 YOUTUBE</h3><div id="y-res" class="track-list-area"></div></div>`;
-        
+
         // Jamendo
-        fetch(`https://api.jamendo.com/v3.0/tracks/?client_id=${JAM_CLIENT_ID}&format=json&search=${query}&limit=12`)
-            .then(r => r.json())
-            .then(data => data.results.forEach(t => {
-                document.getElementById('j-res').innerHTML += createRow(t.name, t.audio, false);
-                allLoadedTracks.push({name: t.name, source: t.audio, isYT: false});
-            }));
+        if (!JAM_CLIENT_ID) {
+            document.getElementById('j-res').innerHTML = "<p style='color:#e74c3c; padding:10px;'>Jamendo API Key missing.</p>";
+        } else {
+            fetch(`https://api.jamendo.com/v3.0/tracks/?client_id=${JAM_CLIENT_ID}&format=json&search=${query}&limit=12`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.results) data.results.forEach(t => {
+                        document.getElementById('j-res').innerHTML += createRow(t.name, t.audio, false);
+                        addToLoadedTracks({name: t.name, source: t.audio, isYT: false});
+                    });
+                }).catch(err => console.error("Jamendo Search Error:", err));
+        }
 
         // YouTube
-        fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${query}&type=video&key=${YT_API_KEY}&maxResults=12`)
-            .then(r => r.json())
-            .then(data => data.items.forEach(item => {
-                const vidId = item.id.videoId;
-                if(vidId) {
-                    document.getElementById('y-res').innerHTML += createRow(item.snippet.title, vidId, true);
-                    allLoadedTracks.push({name: item.snippet.title, source: vidId, isYT: true});
-                }
-            }));
+        if (!YT_API_KEY) {
+            document.getElementById('y-res').innerHTML = "<p style='color:#e74c3c; padding:10px;'>YouTube API Key missing.</p>";
+        } else {
+            fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${query}&type=video&key=${YT_API_KEY}&maxResults=12`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.items) data.items.forEach(item => {
+                        const vidId = item.id.videoId;
+                        if(vidId) {
+                            document.getElementById('y-res').innerHTML += createRow(item.snippet.title, vidId, true);
+                            addToLoadedTracks({name: item.snippet.title, source: vidId, isYT: true});
+                        }
+                    });
+                }).catch(err => console.error("YT Search Error:", err));
+        }
     }
 }
 
 function createRow(title, source, isYT) {
-    const safeTitle = title.replace(/'/g, "").replace(/"/g, ""); 
+    const sTitle = typeof escapeStr === 'function' ? escapeStr(title) : title.replace(/'/g, "");
+    const sSource = typeof escapeStr === 'function' ? escapeStr(source) : source;
     const icon = isYT ? '📺' : '▶';
+
     return `
         <div class="track-item">
-            <span style="font-weight:600; font-size:0.9rem; color:#333;">${safeTitle.substring(0,35)}</span>
+            <span style="font-weight:600; font-size:0.9rem; color:#333;">${title.substring(0,35)}</span>
             <div style="display:flex;">
-                <button class="btn-circle btn-play" onclick="playManual('${source}', '${safeTitle}', ${isYT})">${icon}</button>
-                <button class="btn-circle btn-add" onclick="addToPlaylist('${source}', '${safeTitle}', ${isYT})">+</button>
+                <button class="btn-circle btn-play" onclick="playManual('${sSource}', '${sTitle}', ${isYT})">${icon}</button>
+                <button class="btn-circle btn-add" onclick="addToPlaylist('${sSource}', '${sTitle}', ${isYT})">+</button>
             </div>
         </div>`;
 }
@@ -157,13 +172,27 @@ function prevTrack() { if(currentQueueIndex > 0) playFromQueue(currentQueueIndex
 // 5. Home e Playlists
 async function renderHome(c) {
     c.innerHTML = `<div class="card-column"><h3>POPULARES</h3><div id="h1" class="track-list-area"></div></div><div class="card-column"><h3>DESCOBRIR</h3><div id="h2" class="track-list-area"></div></div>`;
-    fetch(`https://api.jamendo.com/v3.0/tracks/?client_id=${JAM_CLIENT_ID}&format=json&limit=20`)
-        .then(r => r.json())
-        .then(data => data.results.forEach((t, i) => {
-            const target = i < 10 ? 'h1' : 'h2';
-            document.getElementById(target).innerHTML += createRow(t.name, t.audio, false);
-            allLoadedTracks.push({name: t.name, source: t.audio, isYT: false});
-        }));
+
+    if (!JAM_CLIENT_ID) {
+        document.getElementById('h1').innerHTML = "<p style='color:#e74c3c; padding:10px;'>Jamendo API Key missing.</p>";
+        document.getElementById('h2').innerHTML = "<p style='color:#e74c3c; padding:10px;'>Jamendo API Key missing.</p>";
+    } else {
+        fetch(`https://api.jamendo.com/v3.0/tracks/?client_id=${JAM_CLIENT_ID}&format=json&limit=20`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.results) data.results.forEach((t, i) => {
+                    const target = i < 10 ? 'h1' : 'h2';
+                    document.getElementById(target).innerHTML += createRow(t.name, t.audio, false);
+                    addToLoadedTracks({name: t.name, source: t.audio, isYT: false});
+                });
+            }).catch(err => console.error("Jamendo Home Error:", err));
+    }
+}
+
+function addToLoadedTracks(track) {
+    if (!allLoadedTracks.some(t => t.source === track.source)) {
+        allLoadedTracks.push(track);
+    }
 }
 
 function addToPlaylist(src, title, isYT) {
@@ -183,6 +212,8 @@ currentAudio.ontimeupdate = () => {
     if (currentAudio.duration) updateProgress(currentAudio.currentTime, currentAudio.duration);
 };
 
+currentAudio.onended = () => nextTrack();
+
 setInterval(() => {
     if(isYouTubeMode && isYtReady && ytPlayer && ytPlayer.getCurrentTime) {
         updateProgress(ytPlayer.getCurrentTime(), ytPlayer.getDuration());
@@ -191,11 +222,32 @@ setInterval(() => {
 
 function updateProgress(cur, dur) {
     if(dur > 0) {
-        document.getElementById('progress-bar').value = (cur / dur) * 100;
+        if (!isDragging) {
+            document.getElementById('progress-bar').value = (cur / dur) * 100;
+        }
         document.getElementById('current-time').innerText = formatTime(cur);
         document.getElementById('total-time').innerText = formatTime(dur);
     }
 }
+
+const progressBar = document.getElementById('progress-bar');
+progressBar.onmousedown = () => isDragging = true;
+progressBar.onmouseup = () => isDragging = false;
+progressBar.ontouchstart = () => isDragging = true;
+progressBar.ontouchend = () => isDragging = false;
+
+progressBar.onchange = (e) => {
+    const dur = isYouTubeMode ? (ytPlayer ? ytPlayer.getDuration() : 0) : currentAudio.duration;
+    if (dur) {
+        const seekTime = (e.target.value / 100) * dur;
+        if (isYouTubeMode && isYtReady && ytPlayer && ytPlayer.seekTo) {
+            ytPlayer.seekTo(seekTime, true);
+        } else if (!isYouTubeMode) {
+            currentAudio.currentTime = seekTime;
+        }
+    }
+    isDragging = false;
+};
 
 document.getElementById('volume-control').oninput = (e) => {
     currentAudio.volume = e.target.value;

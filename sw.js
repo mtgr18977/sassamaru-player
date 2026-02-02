@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sassamaru-v3';
+const CACHE_NAME = 'sassamaru-v4';
 const ASSETS = [
   './',
   './index.html',
