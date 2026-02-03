@@ -18,9 +18,12 @@ function renderPodcasts(container) {
         <div class="card-column">
             <h3>🎙️ CANAIS</h3>
             <div class="search-box">
-                <input type="text" id="rss-input" placeholder="Cole link RSS...">
+                <input type="text" id="rss-input" placeholder="Cole link RSS ou busque nome...">
             </div>
-            <button id="btn-add-rss" onclick="loadCustomRSS()" style="width:100%; padding:12px; background:var(--accent); color:white; border:none; border-radius:15px; cursor:pointer; margin-bottom:20px; font-weight:bold;">ADICIONAR CANAL</button>
+            <div style="display:flex; gap:10px; margin-bottom:20px;">
+                <button id="btn-add-rss" onclick="loadCustomRSS()" style="flex:1; padding:12px; background:var(--accent); color:white; border:none; border-radius:15px; cursor:pointer; font-weight:bold;">+ RSS</button>
+                <button id="btn-search-podcast" onclick="searchPodcasts()" style="flex:1; padding:12px; background:var(--accent-green); color:white; border:none; border-radius:15px; cursor:pointer; font-weight:bold;">🔍 BUSCAR</button>
+            </div>
             <div id="podcast-list" class="track-list-area"></div>
         </div>
 
@@ -102,10 +105,90 @@ function deletePodcast(index) {
     }
 }
 
-// Limpeza de Strings para não quebrar o HTML
+async function searchPodcasts() {
+    const term = document.getElementById('rss-input').value.trim();
+    if (!term) return;
+
+    const listArea = document.getElementById('podcast-list');
+    const btn = document.getElementById('btn-search-podcast');
+    const originalText = btn.innerText;
+
+    btn.innerText = "⏳...";
+    btn.disabled = true;
+    listArea.innerHTML = `<p style="text-align:center; padding:20px;">🔍 Buscando no Apple Podcasts...</p>`;
+
+    try {
+        const res = await fetch(`/.netlify/functions/itunes?term=${encodeURIComponent(term)}`);
+        const data = await res.json();
+
+        if (!data.results || data.results.length === 0) {
+            listArea.innerHTML = `
+                <p style="text-align:center; padding:20px;">Nenhum podcast encontrado.</p>
+                <button onclick="renderPodcastList()" style="width:100%; padding:10px; border:none; background:#eee; border-radius:10px; cursor:pointer;">Voltar</button>
+            `;
+            return;
+        }
+
+        renderSearchResults(data.results);
+
+    } catch (e) {
+        console.error(e);
+        listArea.innerHTML = `<p style="text-align:center; color:red;">Erro na busca.</p>`;
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
+
+function renderSearchResults(results) {
+    const listArea = document.getElementById('podcast-list');
+    let html = `<div style="margin-bottom:15px;"><button onclick="renderPodcastList()" style="width:100%; padding:10px; border:none; background:#eee; border-radius:10px; cursor:pointer; font-weight:bold;">⬅ VOLTAR À LISTA</button></div>`;
+
+    results.forEach(pod => {
+        const name = pod.collectionName;
+        const url = pod.feedUrl;
+        const artwork = pod.artworkUrl60;
+
+        if (!url) return;
+
+        const sName = escapeStr(name);
+        const sUrl = escapeStr(url);
+
+        html += `
+            <div class="track-item">
+                <div style="flex:1; display:flex; align-items:center; gap:10px; overflow:hidden;">
+                    <img src="${escapeStr(artwork)}" style="width:30px; height:30px; border-radius:5px;">
+                    <span style="font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${sName}">${sName}</span>
+                </div>
+                <button class="btn-circle btn-add" onclick="addPodcastFromSearch('${sName}', '${sUrl}')">+</button>
+            </div>`;
+    });
+
+    listArea.innerHTML = html;
+}
+
+function addPodcastFromSearch(name, url) {
+    if (!PODCAST_FEEDS.some(f => f.url === url)) {
+        PODCAST_FEEDS.push({ name, url });
+        savePodcasts();
+        alert(`"${name}" adicionado aos seus canais!`);
+    } else {
+        alert("Este canal já está na sua lista.");
+    }
+    renderPodcastList();
+    document.getElementById('rss-input').value = "";
+}
+
+// Limpeza de Strings para não quebrar o HTML e prevenir XSS
 function escapeStr(str) {
     if (!str) return "";
-    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').trim();
+    return str
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .trim();
 }
 
 async function fetchRSS(url) {
@@ -137,8 +220,8 @@ async function fetchRSS(url) {
                 rowsHTML += `
                     <div class="track-item">
                         <div style="flex:1; padding-right:10px; overflow:hidden;">
-                            <div style="font-weight:600; font-size:0.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${title}">
-                                ${title}
+                            <div style="font-weight:600; font-size:0.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${safeTitle}">
+                                ${safeTitle}
                             </div>
                             <div style="font-size:0.7rem; color:#888;">${item.pubDate ? item.pubDate.split(' ')[0] : ''}</div>
                         </div>
