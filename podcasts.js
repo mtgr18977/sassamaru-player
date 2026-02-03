@@ -156,11 +156,14 @@ function renderSearchResults(results) {
 
         const sName = escapeStr(name);
         const sUrl = escapeStr(url);
+        const artworkHtml = artwork
+            ? `<img src="${escapeStr(artwork)}" style="width:30px; height:30px; border-radius:5px;">`
+            : "";
 
         html += `
             <div class="track-item">
                 <div style="flex:1; display:flex; align-items:center; gap:10px; overflow:hidden;">
-                    <img src="${escapeStr(artwork)}" style="width:30px; height:30px; border-radius:5px;">
+                    ${artworkHtml}
                     <span style="font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${sName}">${sName}</span>
                 </div>
                 <button class="btn-circle btn-add" onclick="addPodcastFromSearch('${sName}', '${sUrl}')">+</button>
