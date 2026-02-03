@@ -119,6 +119,9 @@ async function searchPodcasts() {
 
     try {
         const res = await fetch(`/.netlify/functions/itunes?term=${encodeURIComponent(term)}`);
+        if (!res.ok) {
+            throw new Error(`Falha na busca de podcasts: ${res.status} ${res.statusText}`);
+        }
         const data = await res.json();
 
         if (!data.results || data.results.length === 0) {
